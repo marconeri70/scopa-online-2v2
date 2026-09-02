@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
   <meta name="theme-color" content="#0f5132">
-  <title>Scopa Online 2 vs 2</title>
+  <title>Scopa Online</title>
   <link rel="manifest" href="/manifest.webmanifest">
   <link rel="stylesheet" href="/styles.css">
 </head>
@@ -12,24 +12,38 @@
   <main class="app">
     <section id="home" class="panel">
       <h1>🃏 Scopa Online</h1>
-      <p class="subtitle">2 contro 2 · quattro telefoni</p>
+      <p class="subtitle">Gioca in 2 oppure 2 contro 2, da telefoni diversi</p>
       <label>Il tuo nome<input id="name" maxlength="20" placeholder="Marco"></label>
+
+      <fieldset class="mode-picker">
+        <legend>Modalità nuova partita</legend>
+        <label class="mode-option">
+          <input type="radio" name="mode" value="2" checked>
+          <span><strong>1 contro 1</strong><small>2 giocatori · 2 telefoni</small></span>
+        </label>
+        <label class="mode-option">
+          <input type="radio" name="mode" value="4">
+          <span><strong>2 contro 2</strong><small>4 giocatori · 4 telefoni</small></span>
+        </label>
+      </fieldset>
+
       <button id="createBtn" class="primary">Crea partita</button>
       <div class="divider">oppure</div>
       <label>Codice stanza<input id="room" maxlength="8" autocomplete="off" placeholder="A7K42"></label>
       <button id="joinBtn">Entra nella stanza</button>
+      <p class="hint">Chi entra con il codice usa automaticamente la modalità scelta dal creatore.</p>
       <p id="homeMsg" class="msg"></p>
     </section>
 
     <section id="game" class="hidden">
       <header class="topbar">
-        <div><strong>SCOPA 2 vs 2</strong><small id="roomLabel"></small></div>
+        <div><strong id="gameTitle">SCOPA</strong><small id="roomLabel"></small></div>
         <button id="leaveBtn" class="small">Esci</button>
       </header>
 
       <div class="scoreboard">
-        <div>Squadra A <strong id="scoreA">0</strong><small id="teamA"></small></div>
-        <div>Squadra B <strong id="scoreB">0</strong><small id="teamB"></small></div>
+        <div><span id="scoreLabelA">Giocatore A</span><strong id="scoreA">0</strong><small id="teamA"></small></div>
+        <div><span id="scoreLabelB">Giocatore B</span><strong id="scoreB">0</strong><small id="teamB"></small></div>
       </div>
 
       <div id="players" class="players"></div>
@@ -50,7 +64,7 @@
         <div id="hand" class="cards hand"></div>
       </section>
 
-      <div class="stats"><span id="scopeStats">Scope 0–0</span><span id="takenStats">Prese 0–0</span></div>
+      <div class="stats"><span id="scopeStats">Scope 0–0</span><span id="takenStats">Carte prese 0–0</span></div>
       <div class="actions"><button id="startBtn" class="primary hidden">Inizia partita</button><button id="newRoundBtn" class="hidden">Nuova mano</button><button id="resetBtn" class="danger hidden">Azzera partita</button></div>
       <p id="error" class="error"></p>
     </section>

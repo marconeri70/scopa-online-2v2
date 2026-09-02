@@ -1,5 +1,4 @@
 const SUITS = ['denari', 'coppe', 'spade', 'bastoni'];
-const TEAM_OF_SEAT = [0, 1, 0, 1];
 
 function createDeck() {
   const deck = [];
@@ -18,20 +17,10 @@ function shuffle(deck) {
   return a;
 }
 
-function cardLabel(c) {
-  const names = { 1: 'Asso', 8: 'Fante', 9: 'Cavallo', 10: 'Re' };
-  return `${names[c.value] || c.value} di ${c.suit}`;
-}
-
 function possibleCaptures(table, played) {
-  // Nella Scopa, se sul tavolo c'è una carta dello stesso valore,
-  // quella presa ha precedenza sulle somme.
   const same = table.filter(c => c.value === played.value);
   if (same.length) return same.map(c => [c.id]);
 
-  // Il valore massimo di una carta è 10: la ricerca ricorsiva può quindi
-  // potare subito ogni ramo che supera il valore giocato, evitando una
-  // crescita esponenziale legata al numero totale di carte sul tavolo.
   const cards = [...table].sort((a, b) => b.value - a.value);
   const out = [];
   const seen = new Set();
@@ -46,7 +35,6 @@ function possibleCaptures(table, played) {
       }
       return;
     }
-
     for (let i = start; i < cards.length; i++) {
       const card = cards[i];
       if (card.value > remaining) continue;
@@ -66,8 +54,7 @@ function primieraCardScore(value) {
 
 function calculateRoundPoints(taken, scopes) {
   const result = [0, 0];
-  const cardsByTeam = [[], []];
-  for (let t = 0; t < 2; t++) cardsByTeam[t] = taken[t] || [];
+  const cardsByTeam = [taken[0] || [], taken[1] || []];
 
   if (cardsByTeam[0].length > cardsByTeam[1].length) result[0]++;
   if (cardsByTeam[1].length > cardsByTeam[0].length) result[1]++;
@@ -104,12 +91,16 @@ export class ScopaRoom {
     this.state = null;
     this.ready = this.ctx.blockConcurrencyWhile(async () => {
       this.state = await this.ctx.storage.get('state') || this.initialState();
+      this.normalizeState();
     });
   }
 
   initialState() {
     return {
       players: [],
+      maxPlayers: 4,
+      winningScore: 11,
+      winner: null,
       started: false,
       round: 0,
       dealer: 0,
@@ -126,11 +117,34 @@ export class ScopaRoom {
     };
   }
 
+  normalizeState() {
+    if (this.state.maxPlayers !== 2 && this.state.maxPlayers !== 4) this.state.maxPlayers = 4;
+    if (!Array.isArray(this.state.hands) || this.state.hands.length < 4) this.state.hands = [[], [], [], []];
+    if (!Array.isArray(this.state.totalScore)) this.state.totalScore = [0, 0];
+    if (!Array.isArray(this.state.taken)) this.state.taken = [[], []];
+    if (!Array.isArray(this.state.scopes)) this.state.scopes = [0, 0];
+    if (!Number.isFinite(this.state.winningScore)) this.state.winningScore = 11;
+    if (this.state.winner === undefined) this.state.winner = null;
+  }
+
+  teamOfSeat(seat) {
+    return this.state.maxPlayers === 2 ? seat : seat % 2;
+  }
+
+  configureMode(rawMode) {
+    const mode = Number(rawMode);
+    if (mode !== 2 && mode !== 4) return;
+    if (!this.state.started && this.state.round === 0 && this.state.players.length === 0) {
+      this.state.maxPlayers = mode;
+    }
+  }
+
   async fetch(request) {
     await this.ready;
     const url = new URL(request.url);
 
     if (request.headers.get('Upgrade') === 'websocket') {
+      this.configureMode(url.searchParams.get('mode'));
       const name = (url.searchParams.get('name') || 'Giocatore').trim().slice(0, 20);
       const token = (url.searchParams.get('token') || crypto.randomUUID()).slice(0, 80);
       const player = this.ensurePlayer(token, name);
@@ -162,7 +176,7 @@ export class ScopaRoom {
       p.connected = true;
       return p;
     }
-    if (this.state.players.length >= 4) return null;
+    if (this.state.players.length >= this.state.maxPlayers) return null;
     p = { token, name, seat: this.state.players.length, connected: true };
     this.state.players.push(p);
     return p;
@@ -190,17 +204,28 @@ export class ScopaRoom {
   }
 
   async webSocketClose(ws) {
+    await this.ready;
     const att = ws.deserializeAttachment() || {};
     const p = this.state.players.find(x => x.token === att.token);
-    if (p) p.connected = false;
+    if (!p) return;
+
+    if (!this.state.started && this.state.round === 0) {
+      this.state.players = this.state.players.filter(x => x.token !== att.token);
+      this.state.players.forEach((player, i) => { player.seat = i; });
+    } else {
+      p.connected = false;
+    }
     await this.save();
     this.broadcast();
   }
 
   startGame(player) {
     if (player.seat !== 0) throw new Error('Solo chi crea la stanza può iniziare');
-    if (this.state.players.length !== 4) throw new Error('Servono 4 giocatori');
-    this.state.totalScore = this.state.totalScore || [0,0];
+    if (this.state.players.length !== this.state.maxPlayers || this.state.players.some(p => !p.connected)) {
+      throw new Error(`Servono ${this.state.maxPlayers} giocatori collegati`);
+    }
+    this.state.totalScore = this.state.totalScore || [0, 0];
+    this.state.winner = null;
     this.setupRound();
   }
 
@@ -214,15 +239,15 @@ export class ScopaRoom {
     this.state.scopes = [0, 0];
     this.state.lastCaptureTeam = null;
     this.state.pendingCapture = null;
-    this.state.turn = (this.state.dealer + 1) % 4;
+    this.state.turn = (this.state.dealer + 1) % this.state.maxPlayers;
     this.dealThreeEach();
     this.state.message = `Mano ${this.state.round}`;
   }
 
   dealThreeEach() {
     for (let r = 0; r < 3; r++) {
-      for (let offset = 1; offset <= 4; offset++) {
-        const seat = (this.state.dealer + offset) % 4;
+      for (let offset = 1; offset <= this.state.maxPlayers; offset++) {
+        const seat = (this.state.dealer + offset) % this.state.maxPlayers;
         if (this.state.deck.length) this.state.hands[seat].push(this.state.deck.shift());
       }
     }
@@ -264,7 +289,7 @@ export class ScopaRoom {
   }
 
   applyCapture(seat, played, capturedIds) {
-    const team = TEAM_OF_SEAT[seat];
+    const team = this.teamOfSeat(seat);
     const captured = [];
     this.state.table = this.state.table.filter(c => {
       if (capturedIds.includes(c.id)) { captured.push(c); return false; }
@@ -273,15 +298,19 @@ export class ScopaRoom {
     this.state.taken[team].push(played, ...captured);
     this.state.lastCaptureTeam = team;
 
-    const allHandsEmpty = this.state.hands.every(h => h.length === 0);
+    const allHandsEmpty = this.activeHandsEmpty();
     const noCardsToDeal = this.state.deck.length === 0;
     if (this.state.table.length === 0 && !(allHandsEmpty && noCardsToDeal)) this.state.scopes[team]++;
     this.advanceTurn();
   }
 
+  activeHandsEmpty() {
+    return this.state.hands.slice(0, this.state.maxPlayers).every(h => h.length === 0);
+  }
+
   advanceTurn() {
-    this.state.turn = (this.state.turn + 1) % 4;
-    if (this.state.hands.every(h => h.length === 0)) {
+    this.state.turn = (this.state.turn + 1) % this.state.maxPlayers;
+    if (this.activeHandsEmpty()) {
       if (this.state.deck.length > 0) {
         this.dealThreeEach();
       } else {
@@ -299,21 +328,38 @@ export class ScopaRoom {
     this.state.totalScore[0] += pts[0];
     this.state.totalScore[1] += pts[1];
     this.state.started = false;
-    this.state.dealer = (this.state.dealer + 1) % 4;
-    this.state.message = `Mano finita: +${pts[0]} Squadra A, +${pts[1]} Squadra B`;
+    this.state.dealer = (this.state.dealer + 1) % this.state.maxPlayers;
+
+    const [a,b] = this.state.totalScore;
+    if ((a >= this.state.winningScore || b >= this.state.winningScore) && a !== b) {
+      this.state.winner = a > b ? 0 : 1;
+      const label = this.state.maxPlayers === 2 ? `Giocatore ${this.state.winner + 1}` : `Squadra ${this.state.winner === 0 ? 'A' : 'B'}`;
+      this.state.message = `${label} vince ${a}–${b}!`;
+    } else {
+      this.state.winner = null;
+      this.state.message = `Mano finita: +${pts[0]} / +${pts[1]} · Totale ${a}–${b}`;
+    }
   }
 
   newRound(player) {
     if (player.seat !== 0) throw new Error('Solo il creatore può avviare la nuova mano');
     if (this.state.started) throw new Error('La mano è ancora in corso');
+    if (this.state.winner !== null) throw new Error('Partita terminata: azzera per ricominciare');
+    if (this.state.players.length !== this.state.maxPlayers || this.state.players.some(p => !p.connected)) {
+      throw new Error(`Servono ${this.state.maxPlayers} giocatori collegati`);
+    }
     this.setupRound();
   }
 
   resetMatch(player) {
     if (player.seat !== 0) throw new Error('Solo il creatore può azzerare la partita');
     const players = this.state.players;
+    const maxPlayers = this.state.maxPlayers;
     this.state = this.initialState();
     this.state.players = players;
+    this.state.maxPlayers = maxPlayers;
+    this.state.players.forEach((p, i) => { p.seat = i; });
+    this.state.message = `Nuova partita · ${maxPlayers} giocatori`;
   }
 
   publicStateFor(token) {
@@ -321,13 +367,16 @@ export class ScopaRoom {
     const seat = viewer?.seat ?? -1;
     return {
       players: this.state.players.map(p => ({ name: p.name, seat: p.seat, connected: p.connected })),
+      maxPlayers: this.state.maxPlayers,
+      winningScore: this.state.winningScore,
+      winner: this.state.winner,
       started: this.state.started,
       round: this.state.round,
       dealer: this.state.dealer,
       turn: this.state.turn,
       table: this.state.table,
       hand: seat >= 0 ? this.state.hands[seat] : [],
-      handCounts: this.state.hands.map(h => h.length),
+      handCounts: this.state.hands.slice(0, this.state.maxPlayers).map(h => h.length),
       deckCount: this.state.deck.length,
       scopes: this.state.scopes,
       takenCounts: this.state.taken.map(a => a.length),
@@ -344,8 +393,10 @@ export class ScopaRoom {
   publicState() {
     return {
       players: this.state.players.map(p => ({ name: p.name, seat: p.seat, connected: p.connected })),
+      maxPlayers: this.state.maxPlayers,
       started: this.state.started,
       totalScore: this.state.totalScore,
+      winner: this.state.winner,
       round: this.state.round
     };
   }
