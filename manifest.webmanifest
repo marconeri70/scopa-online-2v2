@@ -1,9 +1,0 @@
-{
-  "name": "Scopa Online 2 vs 2",
-  "short_name": "Scopa 2v2",
-  "start_url": "/",
-  "display": "standalone",
-  "background_color": "#073b2a",
-  "theme_color": "#0f5132",
-  "icons": []
-}
