@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="Scopa Online">
+  <rect width="512" height="512" rx="104" fill="#0f5132"/>
+  <rect x="112" y="82" width="206" height="300" rx="28" fill="#ffffff" transform="rotate(-10 215 232)"/>
+  <rect x="194" y="130" width="206" height="300" rx="28" fill="#f7f3e8" stroke="#073b2a" stroke-width="14" transform="rotate(10 297 280)"/>
+  <circle cx="300" cy="280" r="76" fill="#e3b400"/>
+  <text x="300" y="307" text-anchor="middle" font-family="system-ui,sans-serif" font-size="92" font-weight="800" fill="#073b2a">7</text>
+</svg>

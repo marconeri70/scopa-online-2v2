@@ -24,23 +24,39 @@ function cardLabel(c) {
 }
 
 function possibleCaptures(table, played) {
+  // Nella Scopa, se sul tavolo c'è una carta dello stesso valore,
+  // quella presa ha precedenza sulle somme.
   const same = table.filter(c => c.value === played.value);
   if (same.length) return same.map(c => [c.id]);
 
+  // Il valore massimo di una carta è 10: la ricerca ricorsiva può quindi
+  // potare subito ogni ramo che supera il valore giocato, evitando una
+  // crescita esponenziale legata al numero totale di carte sul tavolo.
+  const cards = [...table].sort((a, b) => b.value - a.value);
   const out = [];
-  const cards = [...table];
-  const n = cards.length;
-  for (let mask = 1; mask < (1 << n); mask++) {
-    let sum = 0;
-    const ids = [];
-    for (let i = 0; i < n; i++) {
-      if (mask & (1 << i)) {
-        sum += cards[i].value;
-        ids.push(cards[i].id);
+  const seen = new Set();
+
+  function walk(start, remaining, picked) {
+    if (remaining === 0) {
+      const ids = picked.map(c => c.id).sort();
+      const key = ids.join('|');
+      if (!seen.has(key)) {
+        seen.add(key);
+        out.push(ids);
       }
+      return;
     }
-    if (sum === played.value) out.push(ids);
+
+    for (let i = start; i < cards.length; i++) {
+      const card = cards[i];
+      if (card.value > remaining) continue;
+      picked.push(card);
+      walk(i + 1, remaining - card.value, picked);
+      picked.pop();
+    }
   }
+
+  walk(0, played.value, []);
   return out;
 }
 
@@ -117,13 +133,15 @@ export class ScopaRoom {
     if (request.headers.get('Upgrade') === 'websocket') {
       const name = (url.searchParams.get('name') || 'Giocatore').trim().slice(0, 20);
       const token = (url.searchParams.get('token') || crypto.randomUUID()).slice(0, 80);
+      const player = this.ensurePlayer(token, name);
+      if (!player) return new Response('Stanza piena', { status: 409 });
+
       const pair = new WebSocketPair();
       const client = pair[0];
       const server = pair[1];
       this.ctx.acceptWebSocket(server, [token]);
-
       server.serializeAttachment({ token, name });
-      const player = this.ensurePlayer(token, name);
+
       await this.save();
       this.broadcast();
       this.sendTo(server, { type: 'welcome', token, seat: player.seat });
@@ -144,7 +162,7 @@ export class ScopaRoom {
       p.connected = true;
       return p;
     }
-    if (this.state.players.length >= 4) return { token, name, seat: -1, connected: true };
+    if (this.state.players.length >= 4) return null;
     p = { token, name, seat: this.state.players.length, connected: true };
     this.state.players.push(p);
     return p;
