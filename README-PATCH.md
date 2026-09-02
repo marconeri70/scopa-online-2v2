@@ -1,14 +1,10 @@
-# Scopa Online V1.3.1 — Tavolo più pulito
+# Scopa Online V1.3.2 — Prese evidenziate
 
 Sovrascrivere nel repository:
-- public/index.html
 - public/app.js
-- public/styles.css
 - public/sw.js
 
 Novità:
-- punteggio totale fuori dal tavolo;
-- tavolo più pulito;
-- scopa compatta sul lato con sola carta che ha fatto scopa;
-- badge con numero totale di scope fatte;
-- meno confusione visiva su mobile.
+- quando ci sono più prese possibili, il popup mostra le carte reali di ogni presa;
+- le carte della presa selezionata vengono evidenziate direttamente sul tavolo;
+- interfaccia più chiara su mobile per scegliere quali carte prendere.
