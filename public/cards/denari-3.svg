@@ -1,0 +1,28 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="180" height="300" viewBox="0 0 180 300" role="img" aria-label="3 di Denari">
+  <rect width="180" height="300" rx="14" fill="#f7efcf"/>
+  <rect x="5" y="5" width="170" height="290" rx="11" fill="none" stroke="#1e1b18" stroke-width="4"/>
+  <rect x="11" y="11" width="158" height="278" rx="8" fill="none" stroke="#b63b2e" stroke-width="1.5"/>
+  
+    <text x="18" y="32" font-size="22" font-weight="700" fill="#1e1b18">3</text>
+    <text x="162" y="282" text-anchor="end" font-size="22" font-weight="700" fill="#1e1b18">3</text>
+    
+    <g transform="translate(90 65) scale(0.9)">
+      <circle cx="0" cy="0" r="18" fill="#e6b72a" stroke="#7f4f00" stroke-width="2.5"/>
+      <circle cx="0" cy="0" r="12" fill="#f5d969" stroke="#b63b2e" stroke-width="2"/>
+      <path d="M0,-10 L3,-3 L10,0 L3,3 L0,10 L-3,3 L-10,0 L-3,-3 Z" fill="#b63b2e"/>
+      <circle cx="0" cy="0" r="3.5" fill="#244b78"/>
+    </g>
+    <g transform="translate(90 150) scale(0.9)">
+      <circle cx="0" cy="0" r="18" fill="#e6b72a" stroke="#7f4f00" stroke-width="2.5"/>
+      <circle cx="0" cy="0" r="12" fill="#f5d969" stroke="#b63b2e" stroke-width="2"/>
+      <path d="M0,-10 L3,-3 L10,0 L3,3 L0,10 L-3,3 L-10,0 L-3,-3 Z" fill="#b63b2e"/>
+      <circle cx="0" cy="0" r="3.5" fill="#244b78"/>
+    </g>
+    <g transform="translate(90 235) scale(0.9)">
+      <circle cx="0" cy="0" r="18" fill="#e6b72a" stroke="#7f4f00" stroke-width="2.5"/>
+      <circle cx="0" cy="0" r="12" fill="#f5d969" stroke="#b63b2e" stroke-width="2"/>
+      <path d="M0,-10 L3,-3 L10,0 L3,3 L0,10 L-3,3 L-10,0 L-3,-3 Z" fill="#b63b2e"/>
+      <circle cx="0" cy="0" r="3.5" fill="#244b78"/>
+    </g>
+    
+</svg>

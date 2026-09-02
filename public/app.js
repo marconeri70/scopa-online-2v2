@@ -8,14 +8,21 @@ localStorage.setItem('scopa-token', token);
 function randomRoom(){ return Math.random().toString(36).slice(2,7).toUpperCase(); }
 function selectedMode(){ return Number(document.querySelector('input[name="mode"]:checked')?.value || 2); }
 function showGame(){ $('home').classList.add('hidden'); $('game').classList.remove('hidden'); $('roomLabel').textContent = `Stanza ${roomCode}`; }
-function suitIcon(s){ return ({denari:'🟡',coppe:'🏆',spade:'⚔️',bastoni:'🌿'})[s] || '🃏'; }
-function valueName(v){ return ({1:'A',8:'F',9:'C',10:'R'})[v] || String(v); }
+function valueName(v){ return ({1:'Asso',8:'Fante',9:'Cavallo',10:'Re'})[v] || String(v); }
+
 function cardEl(card, playable=false){
   const b=document.createElement('button');
   b.type='button';
-  b.className=`card ${card.suit}${playable?' playable':''}`;
-  b.innerHTML=`<span class="v">${valueName(card.value)} ${suitIcon(card.suit)}</span><span class="s">${card.suit}</span>`;
+  b.className=`card napoletana${playable?' playable':''}`;
   b.title=`${valueName(card.value)} di ${card.suit}`;
+  b.setAttribute('aria-label', b.title);
+
+  const img=document.createElement('img');
+  img.src=`/cards/${card.suit}-${card.value}.svg`;
+  img.alt=b.title;
+  img.draggable=false;
+  b.append(img);
+
   if(!playable) b.disabled=true;
   return b;
 }
@@ -98,7 +105,8 @@ function render(){
     state.pendingCapture.choices.forEach((ids,i)=>{
       const btn=document.createElement('button');
       btn.type='button';
-      btn.textContent=`Presa ${i+1}: ${ids.join(', ')}`;
+      btn.textContent=`Presa ${i+1}`;
+      btn.title=ids.join(', ');
       btn.addEventListener('click',()=>send('capture',{cardIds:ids}));
       $('captureChoices').append(btn);
     });
