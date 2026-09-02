@@ -59,9 +59,7 @@ function connect(code, createMode=null){
     if(msg.type==='state'){ state=msg.state; render(); }
     if(msg.type==='error') $('error').textContent=msg.message;
   };
-  ws.onclose=e=>{
-    $('turnBadge').textContent=e.code===1000?'Disconnesso':'Connessione persa';
-  };
+  ws.onclose=e=>{ $('turnBadge').textContent=e.code===1000?'Disconnesso':'Connessione persa'; };
   ws.onerror=()=>{ $('error').textContent='Errore di connessione o stanza piena'; };
 }
 
@@ -73,6 +71,16 @@ function relativeSeats(){
   const out=[];
   for(let offset=1; offset<max; offset++) out.push((me+offset)%max);
   return out;
+}
+
+function relationClass(seat){
+  if(seat===state.yourSeat) return 'bottom';
+  const max=state.maxPlayers===2?2:4;
+  if(max===2) return 'top';
+  const rel=(seat - state.yourSeat + max) % max;
+  if(rel===1) return 'left';
+  if(rel===2) return 'top';
+  return 'right';
 }
 
 function renderOpponents(){
@@ -111,32 +119,31 @@ function renderScopeZones(){
   const max=state.maxPlayers===2?2:4;
 
   for(let seat=0; seat<max; seat++){
-    const player=playerBySeat(seat);
-    const mine=seat===state.yourSeat;
     const entries=history.filter(x=>x.seat===seat);
     if(!entries.length) continue;
+    const latest=entries[entries.length-1];
+    const playedCard=(latest.cards||[])[0];
+    if(!playedCard) continue;
 
-    const zone=document.createElement('div');
-    zone.className=`scope-zone${mine?' mine':''}`;
-    const title=document.createElement('div');
-    title.className='scope-title';
-    title.textContent=`🧹 ${player?.name||`Giocatore ${seat+1}`} · ${entries.length} ${entries.length===1?'SCOPA':'SCOPE'}`;
-    zone.append(title);
+    const badge=document.createElement('div');
+    badge.className=`scope-badge scope-${relationClass(seat)}`;
+    badge.title=`${playerBySeat(seat)?.name||`Giocatore ${seat+1}`} · ${entries.length} scopa/e`;
 
-    const piles=document.createElement('div');
-    piles.className='scope-piles';
-    entries.forEach(entry=>{
-      const pile=document.createElement('div');
-      pile.className='scope-pile';
-      (entry.cards||[]).slice(0,5).forEach((c,i)=>{
-        const card=cardEl(c,false,true);
-        card.style.setProperty('--pile-i',String(i));
-        pile.append(card);
-      });
-      piles.append(pile);
-    });
-    zone.append(piles);
-    zones.append(zone);
+    const owner=document.createElement('div');
+    owner.className='scope-owner';
+    owner.textContent = `${playerBySeat(seat)?.name||`Giocatore ${seat+1}`}`;
+
+    const miniWrap=document.createElement('div');
+    miniWrap.className='scope-mini-card';
+    miniWrap.append(cardEl(playedCard,false,true));
+
+    const count=document.createElement('span');
+    count.className='scope-count';
+    count.textContent = entries.length;
+    miniWrap.append(count);
+
+    badge.append(owner, miniWrap);
+    zones.append(badge);
   }
 }
 
@@ -162,8 +169,8 @@ function render(){
   renderScopeZones();
 
   const turnName=playerBySeat(state.turn)?.name||'?';
+  const myTurn=state.started && state.yourSeat===state.turn;
   if(state.started){
-    const myTurn=state.yourSeat===state.turn;
     $('turnBadge').textContent=myTurn?'TOCCA A TE':`Turno: ${turnName}`;
     $('turnBadge').classList.toggle('mine',myTurn);
     $('roundInfo').textContent=`Mano ${state.round}`;

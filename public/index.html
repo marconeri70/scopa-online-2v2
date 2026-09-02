@@ -45,15 +45,23 @@
         <button id="leaveBtn" class="small leave">Esci</button>
       </header>
 
+      <section class="score-strip" aria-label="Punteggio totale partita">
+        <div class="score-card left">
+          <span class="score-side-label" id="scoreNameA">Giocatore 1</span>
+          <strong id="scoreA">0</strong>
+        </div>
+        <div class="score-middle">
+          <span>Totale partita</span>
+          <small>Si vince a <b id="winningScore">11</b></small>
+        </div>
+        <div class="score-card right">
+          <span class="score-side-label" id="scoreNameB">Giocatore 2</span>
+          <strong id="scoreB">0</strong>
+        </div>
+      </section>
+
       <section class="game-table" aria-label="Tavolo da Scopa">
         <div id="opponents" class="opponents"></div>
-
-        <div class="center-score" aria-live="polite">
-          <span id="scoreNameA">Giocatore 1</span>
-          <strong><span id="scoreA">0</span><i>–</i><span id="scoreB">0</span></strong>
-          <span id="scoreNameB">Giocatore 2</span>
-          <small>Totale partita · si vince a <b id="winningScore">11</b></small>
-        </div>
 
         <div class="table-info">
           <span id="roundInfo">In attesa</span>
@@ -61,7 +69,6 @@
         </div>
 
         <div id="table" class="cards table-cards"></div>
-
         <div id="scopeZones" class="scope-zones"></div>
 
         <section id="captureBox" class="capture hidden">
@@ -71,13 +78,13 @@
 
         <div class="self-area">
           <div class="self-meta">
-            <div>
+            <div class="self-tag">
               <span class="you-label">TU</span>
               <strong id="selfName">—</strong>
             </div>
             <div class="mini-stats">
               <span id="scopeStats">Scope 0–0</span>
-              <span id="takenStats">Carte prese 0–0</span>
+              <span id="takenStats">Prese 0–0</span>
             </div>
           </div>
           <div id="hand" class="cards hand"></div>
