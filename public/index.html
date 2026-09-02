@@ -31,6 +31,7 @@
       <div class="divider">oppure</div>
       <label>Codice stanza<input id="room" maxlength="8" autocomplete="off" placeholder="A7K42"></label>
       <button id="joinBtn">Entra nella stanza</button>
+      <p id="inviteHint" class="hint"></p>
       <p class="hint">Chi entra usa automaticamente la modalità scelta dal creatore.</p>
       <p id="homeMsg" class="msg"></p>
     </section>
@@ -42,7 +43,11 @@
           <small id="roomLabel"></small>
         </div>
         <div id="turnBadge" class="turn-badge">In attesa</div>
-        <button id="leaveBtn" class="small leave">Esci</button>
+        <div class="header-actions">
+          <button id="shareBtn" class="small share-btn">Condividi</button>
+          <button id="copyCodeBtn" class="small copy-btn">Copia codice</button>
+          <button id="leaveBtn" class="small leave">Esci</button>
+        </div>
       </header>
 
       <section class="score-strip" aria-label="Punteggio totale partita">
@@ -62,30 +67,14 @@
 
       <section class="game-table" aria-label="Tavolo da Scopa">
         <div id="opponents" class="opponents"></div>
-
-        <div class="table-info">
-          <span id="roundInfo">In attesa</span>
-          <span id="deckCount">Mazzo: 0</span>
-        </div>
-
+        <div class="table-info"><span id="roundInfo">In attesa</span><span id="deckCount">Mazzo: 0</span></div>
         <div id="table" class="cards table-cards"></div>
         <div id="scopeZones" class="scope-zones"></div>
-
-        <section id="captureBox" class="capture hidden">
-          <strong>Scegli la presa</strong>
-          <div id="captureChoices"></div>
-        </section>
-
+        <section id="captureBox" class="capture hidden"><strong>Scegli la presa</strong><div id="captureChoices"></div></section>
         <div class="self-area">
           <div class="self-meta">
-            <div class="self-tag">
-              <span class="you-label">TU</span>
-              <strong id="selfName">—</strong>
-            </div>
-            <div class="mini-stats">
-              <span id="scopeStats">Scope 0–0</span>
-              <span id="takenStats">Prese 0–0</span>
-            </div>
+            <div class="self-tag"><span class="you-label">TU</span><strong id="selfName">—</strong></div>
+            <div class="mini-stats"><span id="scopeStats">Scope 0–0</span><span id="takenStats">Prese 0–0</span></div>
           </div>
           <div id="hand" class="cards hand"></div>
         </div>
@@ -100,5 +89,6 @@
     </section>
   </main>
   <script src="/app.js" defer></script>
+  <script src="/share-patch.js" defer></script>
 </body>
 </html>

@@ -1,12 +1,8 @@
-# V1.3.3 — Fix scelta presa su mobile
+# V1.3.4 Condivisione stanza
 
-Sovrascrivere:
-- public/app.js
+Sovrascrivere/caricare:
+- public/index.html
+- public/share-patch.js (nuovo)
 - public/sw.js
 
-Fix:
-- rimosso il rerender su focus/hover che annullava il tap;
-- un tap invia subito la presa;
-- anti doppio tap;
-- messaggio “Presa in corso…”;
-- sblocco automatico in caso di errore server.
+Aggiunge Condividi stanza, Copia codice e link invito ?room=CODICE.
