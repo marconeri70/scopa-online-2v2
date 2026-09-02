@@ -4,6 +4,7 @@ let state = null;
 let token = localStorage.getItem('scopa-token') || crypto.randomUUID();
 let roomCode = '';
 let capturePreview = [];
+let captureSubmitting = false;
 localStorage.setItem('scopa-token', token);
 
 function injectPatchStyles(){
@@ -86,7 +87,7 @@ function connect(code, createMode=null){
   ws.onmessage=e=>{
     const msg=JSON.parse(e.data);
     if(msg.type==='state'){ state=msg.state; render(); }
-    if(msg.type==='error') $('error').textContent=msg.message;
+    if(msg.type==='error'){ captureSubmitting=false; $('error').textContent=msg.message; render(); }
   };
   ws.onclose=e=>{ $('turnBadge').textContent=e.code===1000?'Disconnesso':'Connessione persa'; };
   ws.onerror=()=>{ $('error').textContent='Errore di connessione o stanza piena'; };
@@ -229,9 +230,18 @@ function renderCaptureBox(){
     subtitle.textContent='Queste sono le carte da prendere';
 
     btn.append(title, subtitle, buildChoiceCards(ids));
-    btn.addEventListener('mouseenter',()=>{ capturePreview=[...ids]; render(); });
-    btn.addEventListener('focus',()=>{ capturePreview=[...ids]; render(); });
-    btn.addEventListener('click',()=>{ capturePreview=[...ids]; send('capture',{cardIds:ids}); });
+    btn.addEventListener('click',(event)=>{
+      event.preventDefault();
+      event.stopPropagation();
+      if(captureSubmitting) return;
+      captureSubmitting = true;
+      capturePreview = [...ids];
+      document.querySelectorAll('.capture-option').forEach(b=>{ b.disabled = true; });
+      btn.classList.add('selected');
+      const t = btn.querySelector('.capture-option-title');
+      if(t) t.textContent = 'Presa in corso…';
+      send('capture',{cardIds:ids});
+    });
     choicesWrap.append(btn);
   });
 }
@@ -269,7 +279,10 @@ function render(){
     $('roundInfo').textContent=state.message||'In attesa';
   }
 
-  if(!state.pendingCapture) capturePreview = [];
+  if(!state.pendingCapture){
+    capturePreview = [];
+    captureSubmitting = false;
+  }
 
   $('deckCount').textContent=`Mazzo: ${state.deckCount||0}`;
   $('table').replaceChildren(...state.table.map(c=>cardEl(c,false,false,isHighlightedTableCard(c))));
