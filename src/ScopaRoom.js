@@ -29,10 +29,7 @@ function possibleCaptures(table, played) {
     if (remaining === 0) {
       const ids = picked.map(c => c.id).sort();
       const key = ids.join('|');
-      if (!seen.has(key)) {
-        seen.add(key);
-        out.push(ids);
-      }
+      if (!seen.has(key)) { seen.add(key); out.push(ids); }
       return;
     }
     for (let i = start; i < cards.length; i++) {
@@ -110,6 +107,7 @@ export class ScopaRoom {
       hands: [[], [], [], []],
       taken: [[], []],
       scopes: [0, 0],
+      scopaHistory: [],
       totalScore: [0, 0],
       lastCaptureTeam: null,
       pendingCapture: null,
@@ -123,6 +121,7 @@ export class ScopaRoom {
     if (!Array.isArray(this.state.totalScore)) this.state.totalScore = [0, 0];
     if (!Array.isArray(this.state.taken)) this.state.taken = [[], []];
     if (!Array.isArray(this.state.scopes)) this.state.scopes = [0, 0];
+    if (!Array.isArray(this.state.scopaHistory)) this.state.scopaHistory = [];
     if (!Number.isFinite(this.state.winningScore)) this.state.winningScore = 11;
     if (this.state.winner === undefined) this.state.winner = null;
   }
@@ -134,9 +133,7 @@ export class ScopaRoom {
   configureMode(rawMode) {
     const mode = Number(rawMode);
     if (mode !== 2 && mode !== 4) return;
-    if (!this.state.started && this.state.round === 0 && this.state.players.length === 0) {
-      this.state.maxPlayers = mode;
-    }
+    if (!this.state.started && this.state.round === 0 && this.state.players.length === 0) this.state.maxPlayers = mode;
   }
 
   async fetch(request) {
@@ -162,20 +159,13 @@ export class ScopaRoom {
       return new Response(null, { status: 101, webSocket: client });
     }
 
-    if (request.method === 'GET' && url.pathname.endsWith('/state')) {
-      return Response.json(this.publicState());
-    }
-
+    if (request.method === 'GET' && url.pathname.endsWith('/state')) return Response.json(this.publicState());
     return new Response('Scopa room', { status: 200 });
   }
 
   ensurePlayer(token, name) {
     let p = this.state.players.find(x => x.token === token);
-    if (p) {
-      p.name = name || p.name;
-      p.connected = true;
-      return p;
-    }
+    if (p) { p.name = name || p.name; p.connected = true; return p; }
     if (this.state.players.length >= this.state.maxPlayers) return null;
     p = { token, name, seat: this.state.players.length, connected: true };
     this.state.players.push(p);
@@ -237,6 +227,7 @@ export class ScopaRoom {
     this.state.hands = [[], [], [], []];
     this.state.taken = [[], []];
     this.state.scopes = [0, 0];
+    this.state.scopaHistory = [];
     this.state.lastCaptureTeam = null;
     this.state.pendingCapture = null;
     this.state.turn = (this.state.dealer + 1) % this.state.maxPlayers;
@@ -257,9 +248,11 @@ export class ScopaRoom {
     if (!this.state.started) throw new Error('Partita non iniziata');
     if (this.state.pendingCapture) throw new Error('Completa prima la presa');
     if (player.seat !== this.state.turn) throw new Error('Non è il tuo turno');
+
     const hand = this.state.hands[player.seat];
     const idx = hand.findIndex(c => c.id === cardId);
     if (idx < 0) throw new Error('Carta non disponibile');
+
     const played = hand.splice(idx, 1)[0];
     const choices = possibleCaptures(this.state.table, played);
 
@@ -268,12 +261,10 @@ export class ScopaRoom {
       this.advanceTurn();
       return;
     }
-
     if (choices.length === 1) {
       this.applyCapture(player.seat, played, choices[0]);
       return;
     }
-
     this.state.pendingCapture = { seat: player.seat, played, choices };
     this.state.message = 'Scegli quali carte prendere';
   }
@@ -295,12 +286,23 @@ export class ScopaRoom {
       if (capturedIds.includes(c.id)) { captured.push(c); return false; }
       return true;
     });
+
     this.state.taken[team].push(played, ...captured);
     this.state.lastCaptureTeam = team;
 
     const allHandsEmpty = this.activeHandsEmpty();
     const noCardsToDeal = this.state.deck.length === 0;
-    if (this.state.table.length === 0 && !(allHandsEmpty && noCardsToDeal)) this.state.scopes[team]++;
+    const isScopa = this.state.table.length === 0 && !(allHandsEmpty && noCardsToDeal);
+
+    if (isScopa) {
+      this.state.scopes[team]++;
+      this.state.scopaHistory.push({
+        seat,
+        team,
+        cards: [played, ...captured],
+        number: this.state.scopes[team]
+      });
+    }
     this.advanceTurn();
   }
 
@@ -311,11 +313,8 @@ export class ScopaRoom {
   advanceTurn() {
     this.state.turn = (this.state.turn + 1) % this.state.maxPlayers;
     if (this.activeHandsEmpty()) {
-      if (this.state.deck.length > 0) {
-        this.dealThreeEach();
-      } else {
-        this.finishRound();
-      }
+      if (this.state.deck.length > 0) this.dealThreeEach();
+      else this.finishRound();
     }
   }
 
@@ -324,6 +323,7 @@ export class ScopaRoom {
       this.state.taken[this.state.lastCaptureTeam].push(...this.state.table);
       this.state.table = [];
     }
+
     const pts = calculateRoundPoints(this.state.taken, this.state.scopes);
     this.state.totalScore[0] += pts[0];
     this.state.totalScore[1] += pts[1];
@@ -333,7 +333,9 @@ export class ScopaRoom {
     const [a,b] = this.state.totalScore;
     if ((a >= this.state.winningScore || b >= this.state.winningScore) && a !== b) {
       this.state.winner = a > b ? 0 : 1;
-      const label = this.state.maxPlayers === 2 ? `Giocatore ${this.state.winner + 1}` : `Squadra ${this.state.winner === 0 ? 'A' : 'B'}`;
+      const label = this.state.maxPlayers === 2
+        ? (this.state.players.find(p=>p.seat===this.state.winner)?.name || `Giocatore ${this.state.winner + 1}`)
+        : `Squadra ${this.state.winner === 0 ? 'A' : 'B'}`;
       this.state.message = `${label} vince ${a}–${b}!`;
     } else {
       this.state.winner = null;
@@ -379,6 +381,7 @@ export class ScopaRoom {
       handCounts: this.state.hands.slice(0, this.state.maxPlayers).map(h => h.length),
       deckCount: this.state.deck.length,
       scopes: this.state.scopes,
+      scopaHistory: this.state.scopaHistory,
       takenCounts: this.state.taken.map(a => a.length),
       totalScore: this.state.totalScore,
       pendingCapture: this.state.pendingCapture && this.state.pendingCapture.seat === seat ? {
