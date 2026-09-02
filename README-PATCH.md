@@ -1,10 +1,12 @@
-# Scopa Online V1.3.2 — Prese evidenziate
+# V1.3.3 — Fix scelta presa su mobile
 
-Sovrascrivere nel repository:
+Sovrascrivere:
 - public/app.js
 - public/sw.js
 
-Novità:
-- quando ci sono più prese possibili, il popup mostra le carte reali di ogni presa;
-- le carte della presa selezionata vengono evidenziate direttamente sul tavolo;
-- interfaccia più chiara su mobile per scegliere quali carte prendere.
+Fix:
+- rimosso il rerender su focus/hover che annullava il tap;
+- un tap invia subito la presa;
+- anti doppio tap;
+- messaggio “Presa in corso…”;
+- sblocco automatico in caso di errore server.
