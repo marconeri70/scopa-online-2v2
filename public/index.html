@@ -12,13 +12,17 @@
   <main class="app">
     <section id="home" class="panel home-panel">
       <h1>🃏 Scopa Online</h1>
-      <p class="subtitle">1 contro 1 oppure 2 contro 2</p>
+      <p class="subtitle">Gioca contro il sistema, 1 contro 1 online oppure 2 contro 2</p>
       <label>Il tuo nome<input id="name" maxlength="20" placeholder="Marco"></label>
 
       <fieldset class="mode-picker">
         <legend>Modalità nuova partita</legend>
         <label class="mode-option">
-          <input type="radio" name="mode" value="2" checked>
+          <input type="radio" name="mode" value="cpu" checked>
+          <span><strong>1 contro Sistema</strong><small>Giochi da solo contro la CPU</small></span>
+        </label>
+        <label class="mode-option">
+          <input type="radio" name="mode" value="2">
           <span><strong>1 contro 1</strong><small>2 giocatori · 2 telefoni</small></span>
         </label>
         <label class="mode-option">
@@ -32,7 +36,7 @@
       <label>Codice stanza<input id="room" maxlength="8" autocomplete="off" placeholder="A7K42"></label>
       <button id="joinBtn">Entra nella stanza</button>
       <p id="inviteHint" class="hint"></p>
-      <p class="hint">Chi entra usa automaticamente la modalità scelta dal creatore.</p>
+      <p class="hint">Il codice stanza serve solo per le modalità online.</p>
       <p id="homeMsg" class="msg"></p>
     </section>
 
@@ -89,6 +93,7 @@
     </section>
   </main>
   <script src="/app.js" defer></script>
+  <script src="/cpu-patch.js" defer></script>
   <script src="/share-patch.js" defer></script>
 </body>
 </html>
