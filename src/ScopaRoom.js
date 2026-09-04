@@ -96,6 +96,7 @@ export class ScopaRoom {
     return {
       players: [],
       maxPlayers: 4,
+      playMode: 'team4',
       winningScore: 11,
       winner: null,
       started: false,
@@ -117,6 +118,9 @@ export class ScopaRoom {
 
   normalizeState() {
     if (this.state.maxPlayers !== 2 && this.state.maxPlayers !== 4) this.state.maxPlayers = 4;
+    if (!['cpu', 'human2', 'team4'].includes(this.state.playMode)) {
+      this.state.playMode = this.state.maxPlayers === 2 ? 'human2' : 'team4';
+    }
     if (!Array.isArray(this.state.hands) || this.state.hands.length < 4) this.state.hands = [[], [], [], []];
     if (!Array.isArray(this.state.totalScore)) this.state.totalScore = [0, 0];
     if (!Array.isArray(this.state.taken)) this.state.taken = [[], []];
@@ -131,9 +135,33 @@ export class ScopaRoom {
   }
 
   configureMode(rawMode) {
+    if (this.state.started || this.state.round !== 0 || this.state.players.length !== 0) return;
+    if (rawMode === 'cpu') {
+      this.state.maxPlayers = 2;
+      this.state.playMode = 'cpu';
+      return;
+    }
     const mode = Number(rawMode);
-    if (mode !== 2 && mode !== 4) return;
-    if (!this.state.started && this.state.round === 0 && this.state.players.length === 0) this.state.maxPlayers = mode;
+    if (mode === 2) {
+      this.state.maxPlayers = 2;
+      this.state.playMode = 'human2';
+    } else if (mode === 4) {
+      this.state.maxPlayers = 4;
+      this.state.playMode = 'team4';
+    }
+  }
+
+  ensureCpuPlayer() {
+    if (this.state.playMode !== 'cpu') return;
+    let bot = this.state.players.find(p => p.isBot);
+    if (!bot) {
+      bot = { token: '__cpu__', name: 'Sistema', seat: 1, connected: true, isBot: true };
+      this.state.players.push(bot);
+    }
+    bot.name = 'Sistema';
+    bot.seat = 1;
+    bot.connected = true;
+    bot.isBot = true;
   }
 
   async fetch(request) {
@@ -146,6 +174,7 @@ export class ScopaRoom {
       const token = (url.searchParams.get('token') || crypto.randomUUID()).slice(0, 80);
       const player = this.ensurePlayer(token, name);
       if (!player) return new Response('Stanza piena', { status: 409 });
+      this.ensureCpuPlayer();
 
       const pair = new WebSocketPair();
       const client = pair[0];
@@ -164,10 +193,18 @@ export class ScopaRoom {
   }
 
   ensurePlayer(token, name) {
-    let p = this.state.players.find(x => x.token === token);
+    let p = this.state.players.find(x => x.token === token && !x.isBot);
     if (p) { p.name = name || p.name; p.connected = true; return p; }
+
+    if (this.state.playMode === 'cpu') {
+      if (this.state.players.some(x => !x.isBot)) return null;
+      p = { token, name, seat: 0, connected: true, isBot: false };
+      this.state.players = [p];
+      return p;
+    }
+
     if (this.state.players.length >= this.state.maxPlayers) return null;
-    p = { token, name, seat: this.state.players.length, connected: true };
+    p = { token, name, seat: this.state.players.length, connected: true, isBot: false };
     this.state.players.push(p);
     return p;
   }
@@ -177,7 +214,7 @@ export class ScopaRoom {
     let msg;
     try { msg = JSON.parse(raw); } catch { return; }
     const att = ws.deserializeAttachment() || {};
-    const player = this.state.players.find(p => p.token === att.token);
+    const player = this.state.players.find(p => p.token === att.token && !p.isBot);
     if (!player) return;
 
     try {
@@ -186,6 +223,8 @@ export class ScopaRoom {
       if (msg.type === 'capture') this.chooseCapture(player, msg.cardIds || []);
       if (msg.type === 'newRound') this.newRound(player);
       if (msg.type === 'resetMatch') this.resetMatch(player);
+
+      this.runCpuIfNeeded();
       await this.save();
       this.broadcast();
     } catch (e) {
@@ -196,12 +235,16 @@ export class ScopaRoom {
   async webSocketClose(ws) {
     await this.ready;
     const att = ws.deserializeAttachment() || {};
-    const p = this.state.players.find(x => x.token === att.token);
+    const p = this.state.players.find(x => x.token === att.token && !x.isBot);
     if (!p) return;
 
     if (!this.state.started && this.state.round === 0) {
-      this.state.players = this.state.players.filter(x => x.token !== att.token);
-      this.state.players.forEach((player, i) => { player.seat = i; });
+      if (this.state.playMode === 'cpu') {
+        this.state.players = [];
+      } else {
+        this.state.players = this.state.players.filter(x => x.token !== att.token);
+        this.state.players.forEach((player, i) => { player.seat = i; });
+      }
     } else {
       p.connected = false;
     }
@@ -211,6 +254,7 @@ export class ScopaRoom {
 
   startGame(player) {
     if (player.seat !== 0) throw new Error('Solo chi crea la stanza può iniziare');
+    this.ensureCpuPlayer();
     if (this.state.players.length !== this.state.maxPlayers || this.state.players.some(p => !p.connected)) {
       throw new Error(`Servono ${this.state.maxPlayers} giocatori collegati`);
     }
@@ -277,6 +321,75 @@ export class ScopaRoom {
     if (!valid) throw new Error('Combinazione non valida');
     this.state.pendingCapture = null;
     this.applyCapture(player.seat, p.played, valid);
+  }
+
+  scoreCapture(played, ids) {
+    const captured = this.state.table.filter(c => ids.includes(c.id));
+    let score = captured.length * 8;
+    if (captured.length === this.state.table.length) score += 120;
+    for (const c of [played, ...captured]) {
+      if (c.suit === 'denari') score += 14;
+      if (c.suit === 'denari' && c.value === 7) score += 90;
+      if (c.value === 7) score += 18;
+      else if (c.value === 6) score += 11;
+      else if (c.value === 1) score += 8;
+      score += primieraCardScore(c.value) / 6;
+    }
+    return score;
+  }
+
+  discardPenalty(card) {
+    let penalty = primieraCardScore(card.value);
+    if (card.suit === 'denari') penalty += 22;
+    if (card.suit === 'denari' && card.value === 7) penalty += 100;
+    if (card.value === 7) penalty += 18;
+    return penalty;
+  }
+
+  cpuTurn() {
+    if (this.state.playMode !== 'cpu' || !this.state.started || this.state.turn !== 1) return;
+    const hand = this.state.hands[1];
+    if (!hand?.length) return;
+
+    let best = null;
+    for (const card of hand) {
+      const choices = possibleCaptures(this.state.table, card);
+      if (choices.length) {
+        for (const ids of choices) {
+          const score = this.scoreCapture(card, ids);
+          if (!best || score > best.score) best = { card, ids, score };
+        }
+      } else {
+        const score = -this.discardPenalty(card);
+        if (!best || score > best.score) best = { card, ids: null, score };
+      }
+    }
+
+    if (!best) return;
+    const idx = hand.findIndex(c => c.id === best.card.id);
+    const played = hand.splice(idx, 1)[0];
+
+    if (best.ids?.length) {
+      this.applyCapture(1, played, best.ids);
+      this.state.message = 'Sistema ha effettuato una presa';
+    } else {
+      this.state.table.push(played);
+      this.advanceTurn();
+      this.state.message = 'Sistema ha giocato';
+    }
+  }
+
+  runCpuIfNeeded() {
+    let guard = 0;
+    while (
+      guard++ < 4 &&
+      this.state.playMode === 'cpu' &&
+      this.state.started &&
+      this.state.turn === 1 &&
+      !this.state.pendingCapture
+    ) {
+      this.cpuTurn();
+    }
   }
 
   applyCapture(seat, played, capturedIds) {
@@ -347,6 +460,7 @@ export class ScopaRoom {
     if (player.seat !== 0) throw new Error('Solo il creatore può avviare la nuova mano');
     if (this.state.started) throw new Error('La mano è ancora in corso');
     if (this.state.winner !== null) throw new Error('Partita terminata: azzera per ricominciare');
+    this.ensureCpuPlayer();
     if (this.state.players.length !== this.state.maxPlayers || this.state.players.some(p => !p.connected)) {
       throw new Error(`Servono ${this.state.maxPlayers} giocatori collegati`);
     }
@@ -357,19 +471,23 @@ export class ScopaRoom {
     if (player.seat !== 0) throw new Error('Solo il creatore può azzerare la partita');
     const players = this.state.players;
     const maxPlayers = this.state.maxPlayers;
+    const playMode = this.state.playMode;
     this.state = this.initialState();
     this.state.players = players;
     this.state.maxPlayers = maxPlayers;
+    this.state.playMode = playMode;
     this.state.players.forEach((p, i) => { p.seat = i; });
-    this.state.message = `Nuova partita · ${maxPlayers} giocatori`;
+    if (playMode === 'cpu') this.ensureCpuPlayer();
+    this.state.message = playMode === 'cpu' ? 'Nuova partita · Tu contro Sistema' : `Nuova partita · ${maxPlayers} giocatori`;
   }
 
   publicStateFor(token) {
-    const viewer = this.state.players.find(p => p.token === token);
+    const viewer = this.state.players.find(p => p.token === token && !p.isBot);
     const seat = viewer?.seat ?? -1;
     return {
-      players: this.state.players.map(p => ({ name: p.name, seat: p.seat, connected: p.connected })),
+      players: this.state.players.map(p => ({ name: p.name, seat: p.seat, connected: p.connected, isBot: !!p.isBot })),
       maxPlayers: this.state.maxPlayers,
+      playMode: this.state.playMode,
       winningScore: this.state.winningScore,
       winner: this.state.winner,
       started: this.state.started,
@@ -395,8 +513,9 @@ export class ScopaRoom {
 
   publicState() {
     return {
-      players: this.state.players.map(p => ({ name: p.name, seat: p.seat, connected: p.connected })),
+      players: this.state.players.map(p => ({ name: p.name, seat: p.seat, connected: p.connected, isBot: !!p.isBot })),
       maxPlayers: this.state.maxPlayers,
+      playMode: this.state.playMode,
       started: this.state.started,
       totalScore: this.state.totalScore,
       winner: this.state.winner,
