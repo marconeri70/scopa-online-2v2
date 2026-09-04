@@ -107,11 +107,16 @@ export class ScopaRoom {
       table: [],
       hands: [[], [], [], []],
       taken: [[], []],
+      takenPreview: [
+        { count: 0, top: null, seat: 0 },
+        { count: 0, top: null, seat: 1 }
+      ],
       scopes: [0, 0],
       scopaHistory: [],
       totalScore: [0, 0],
       lastCaptureTeam: null,
       pendingCapture: null,
+      lastAction: null,
       message: 'In attesa dei giocatori'
     };
   }
@@ -124,6 +129,9 @@ export class ScopaRoom {
     if (!Array.isArray(this.state.hands) || this.state.hands.length < 4) this.state.hands = [[], [], [], []];
     if (!Array.isArray(this.state.totalScore)) this.state.totalScore = [0, 0];
     if (!Array.isArray(this.state.taken)) this.state.taken = [[], []];
+    if (!Array.isArray(this.state.takenPreview) || this.state.takenPreview.length < 2) {
+      this.state.takenPreview = [{ count: 0, top: null, seat: 0 }, { count: 0, top: null, seat: 1 }];
+    }
     if (!Array.isArray(this.state.scopes)) this.state.scopes = [0, 0];
     if (!Array.isArray(this.state.scopaHistory)) this.state.scopaHistory = [];
     if (!Number.isFinite(this.state.winningScore)) this.state.winningScore = 11;
@@ -270,12 +278,17 @@ export class ScopaRoom {
     this.state.table = this.state.deck.splice(0, 4);
     this.state.hands = [[], [], [], []];
     this.state.taken = [[], []];
+    this.state.takenPreview = [
+      { count: 0, top: null, seat: 0 },
+      { count: 0, top: null, seat: 1 }
+    ];
     this.state.scopes = [0, 0];
     this.state.scopaHistory = [];
     this.state.lastCaptureTeam = null;
     this.state.pendingCapture = null;
     this.state.turn = (this.state.dealer + 1) % this.state.maxPlayers;
     this.dealThreeEach();
+    this.state.lastAction = { type: 'deal', round: this.state.round, ts: Date.now() };
     this.state.message = `Mano ${this.state.round}`;
   }
 
@@ -302,6 +315,7 @@ export class ScopaRoom {
 
     if (choices.length === 0) {
       this.state.table.push(played);
+      this.state.lastAction = { type: 'play', seat: player.seat, played, ts: Date.now() };
       this.advanceTurn();
       return;
     }
@@ -374,6 +388,7 @@ export class ScopaRoom {
       this.state.message = 'Sistema ha effettuato una presa';
     } else {
       this.state.table.push(played);
+      this.state.lastAction = { type: 'play', seat: 1, played, ts: Date.now() };
       this.advanceTurn();
       this.state.message = 'Sistema ha giocato';
     }
@@ -401,6 +416,11 @@ export class ScopaRoom {
     });
 
     this.state.taken[team].push(played, ...captured);
+    this.state.takenPreview[team] = {
+      count: this.state.taken[team].length,
+      top: played,
+      seat
+    };
     this.state.lastCaptureTeam = team;
 
     const allHandsEmpty = this.activeHandsEmpty();
@@ -416,6 +436,17 @@ export class ScopaRoom {
         number: this.state.scopes[team]
       });
     }
+
+    this.state.lastAction = {
+      type: 'capture',
+      seat,
+      team,
+      played,
+      captured,
+      isScopa,
+      ts: Date.now()
+    };
+
     this.advanceTurn();
   }
 
@@ -426,14 +457,25 @@ export class ScopaRoom {
   advanceTurn() {
     this.state.turn = (this.state.turn + 1) % this.state.maxPlayers;
     if (this.activeHandsEmpty()) {
-      if (this.state.deck.length > 0) this.dealThreeEach();
-      else this.finishRound();
+      if (this.state.deck.length > 0) {
+        this.dealThreeEach();
+        this.state.lastAction = { type: 'deal', round: this.state.round, ts: Date.now() };
+      } else {
+        this.finishRound();
+      }
     }
   }
 
   finishRound() {
     if (this.state.table.length && this.state.lastCaptureTeam !== null) {
       this.state.taken[this.state.lastCaptureTeam].push(...this.state.table);
+      const top = this.state.table[this.state.table.length - 1] || this.state.takenPreview[this.state.lastCaptureTeam]?.top || null;
+      const seat = this.state.takenPreview[this.state.lastCaptureTeam]?.seat ?? this.state.lastCaptureTeam;
+      this.state.takenPreview[this.state.lastCaptureTeam] = {
+        count: this.state.taken[this.state.lastCaptureTeam].length,
+        top,
+        seat
+      };
       this.state.table = [];
     }
 
@@ -442,6 +484,7 @@ export class ScopaRoom {
     this.state.totalScore[1] += pts[1];
     this.state.started = false;
     this.state.dealer = (this.state.dealer + 1) % this.state.maxPlayers;
+    this.state.lastAction = { type: 'round-end', ts: Date.now() };
 
     const [a,b] = this.state.totalScore;
     if ((a >= this.state.winningScore || b >= this.state.winningScore) && a !== b) {
@@ -501,7 +544,9 @@ export class ScopaRoom {
       scopes: this.state.scopes,
       scopaHistory: this.state.scopaHistory,
       takenCounts: this.state.taken.map(a => a.length),
+      takenPreview: this.state.takenPreview,
       totalScore: this.state.totalScore,
+      lastAction: this.state.lastAction,
       pendingCapture: this.state.pendingCapture && this.state.pendingCapture.seat === seat ? {
         played: this.state.pendingCapture.played,
         choices: this.state.pendingCapture.choices
