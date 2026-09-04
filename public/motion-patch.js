@@ -20,58 +20,124 @@
     const st=document.createElement('style');
     st.id='motion-patch-styles';
     st.textContent=`
+      /* V1.6.1 — layout ordinato: ogni elemento ha una zona precisa */
       .game{grid-template-rows:auto auto 1fr auto!important}
-      .game-bar{padding:8px 12px!important}
-      .header-actions{display:flex;gap:6px;justify-self:end;flex-wrap:wrap}
-      .score-strip{padding:8px 10px!important;gap:8px!important;background:linear-gradient(180deg,#063c2d,#052f22)!important}
-      .score-card{min-height:60px!important;box-shadow:inset 0 0 0 1px rgba(255,255,255,.05),0 6px 16px rgba(0,0,0,.18)}
-      .score-card strong{font-size:2.15rem!important}
-      .game-table{position:relative;overflow:hidden;background:
-        radial-gradient(circle at center,#1b9a61 0,#0d7448 44%,#085437 72%,#063a2b 100%)!important}
-      .game-table:before{content:"";position:absolute;inset:10px;border-radius:28px;border:4px solid rgba(223,190,99,.6);box-shadow:inset 0 0 0 1px rgba(255,255,255,.12), inset 0 0 42px rgba(0,0,0,.22);pointer-events:none}
-      .game-table:after{content:"";position:absolute;inset:0;pointer-events:none;background:radial-gradient(circle at 50% 48%,transparent 0 45%,rgba(0,0,0,.10) 78%,rgba(0,0,0,.24) 100%)}
-      .table-info{top:14px!important;left:18px!important;right:18px!important;font-size:1rem!important;z-index:14}
-      #opponents,#table,#scopeZones,.self-area,#captureBox{position:relative;z-index:12}
+      .game-bar{padding:6px 10px!important;min-height:54px!important}
+      .header-actions{display:flex;gap:5px;justify-self:end;align-items:center;flex-wrap:nowrap}
+      .header-actions .small{min-height:34px!important;padding:5px 9px!important;font-size:.78rem!important}
+
+      .score-strip{padding:6px 9px!important;gap:7px!important;background:linear-gradient(180deg,#063c2d,#052f22)!important}
+      .score-card{min-height:52px!important;padding:6px 10px!important;box-shadow:inset 0 0 0 1px rgba(255,255,255,.05),0 4px 12px rgba(0,0,0,.18)}
+      .score-card strong{font-size:1.8rem!important}
+      .score-middle{padding:0 5px!important}
+
+      .game-table{position:relative!important;overflow:hidden!important;background:radial-gradient(circle at 50% 44%,#178957 0,#0d7047 47%,#085236 74%,#06382a 100%)!important}
+      .game-table:before{content:"";position:absolute;inset:9px;border-radius:26px;border:3px solid rgba(223,190,99,.58);box-shadow:inset 0 0 0 1px rgba(255,255,255,.10), inset 0 0 42px rgba(0,0,0,.20);pointer-events:none}
+      .game-table:after{content:"";position:absolute;inset:0;pointer-events:none;background:radial-gradient(circle at 50% 46%,transparent 0 50%,rgba(0,0,0,.08) 78%,rgba(0,0,0,.18) 100%)}
+
+      .table-info{position:absolute!important;top:13px!important;left:20px!important;right:20px!important;font-size:.95rem!important;z-index:15!important}
+      .opponents{position:absolute!important;inset:0!important;z-index:12!important}
+      .scope-zones{position:absolute!important;inset:0!important;z-index:13!important}
+      .self-area{position:absolute!important;left:50%!important;bottom:8px!important;transform:translateX(-50%)!important;width:min(92%,800px)!important;z-index:14!important}
+      #table{position:absolute!important;z-index:11!important}
+      #captureBox{position:absolute!important;z-index:35!important}
       #takenZones{position:absolute;inset:0;pointer-events:none;z-index:13}
       #motionLayer{position:absolute;inset:0;pointer-events:none;z-index:40;overflow:hidden}
-      .table-cards{top:47%!important;transform:translate(-50%,-34%)!important;min-height:122px!important;width:min(78%,760px)!important}
-      .self-area{bottom:10px!important;width:min(95%,820px)!important}
-      .self-meta{margin-bottom:8px!important}
-      .hand{min-height:154px!important}
-      .hand .card.napoletana{width:92px!important;height:152px!important}
-      .card.napoletana{box-shadow:0 10px 24px rgba(0,0,0,.36)!important;border-radius:10px!important;transform-origin:center center}
+
+      /* Avversario: solo zona alta */
+      .opponent-top{top:54px!important;left:50%!important;transform:translateX(-50%)!important}
+      .opponent-name{font-size:.86rem!important;padding:5px 10px!important}
+      .opponent-hand{padding-left:10px!important}
+      .card-back{width:46px!important;height:73px!important;margin-left:-14px!important}
+      .card-back:first-child{margin-left:0!important}
+
+      /* Carte sul tavolo: SOLO al centro, lontane da nomi e mano */
+      .table-cards{left:50%!important;top:46%!important;transform:translate(-50%,-50%)!important;width:min(72%,690px)!important;min-height:215px!important;gap:9px!important;align-content:center!important}
+      .table-cards .card.napoletana{width:72px!important;height:120px!important}
+
+      /* Giocatore: fascia dedicata in basso */
+      .self-meta{margin:0 auto 5px!important;padding:0 3px!important;justify-content:center!important}
+      .self-tag{padding:5px 11px!important}
+      .mini-stats{display:none!important}
+      .hand{min-height:138px!important;padding:2px 0!important;gap:9px!important;flex-wrap:nowrap!important}
+      .hand .card.napoletana{width:82px!important;height:136px!important}
+
+      .card.napoletana{box-shadow:0 7px 18px rgba(0,0,0,.34)!important;border-radius:9px!important;transform-origin:center center}
       .card.napoletana.arrive{animation:cardPop .26s ease-out}
       .card.napoletana.takeflash{animation:takeFlash .45s ease}
-      @keyframes cardPop{0%{transform:translateY(-12px) scale(.92);opacity:.25}100%{transform:translateY(0) scale(1);opacity:1}}
-      @keyframes takeFlash{0%{box-shadow:0 0 0 0 rgba(255,226,107,.0),0 10px 24px rgba(0,0,0,.36)}35%{box-shadow:0 0 0 5px rgba(255,226,107,.5),0 10px 24px rgba(0,0,0,.36)}100%{box-shadow:0 10px 24px rgba(0,0,0,.36)}}
-      .taken-pile{position:absolute;display:flex;align-items:center;gap:5px;background:rgba(4,36,28,.88);border:1px solid rgba(255,210,74,.45);border-radius:14px;padding:6px 8px;box-shadow:0 8px 20px rgba(0,0,0,.32)}
-      .taken-pile .label{font-size:.72rem;font-weight:800;color:#fff1a8;max-width:70px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-      .taken-pile .count{min-width:24px;height:24px;border-radius:999px;background:#ffd24a;color:#173325;display:grid;place-items:center;font-weight:900;font-size:.78rem;border:2px solid #fff7cf}
+      @keyframes cardPop{0%{transform:translateY(-10px) scale(.94);opacity:.3}100%{transform:translateY(0) scale(1);opacity:1}}
+      @keyframes takeFlash{0%{box-shadow:0 0 0 0 rgba(255,226,107,0),0 7px 18px rgba(0,0,0,.34)}35%{box-shadow:0 0 0 5px rgba(255,226,107,.45),0 7px 18px rgba(0,0,0,.34)}100%{box-shadow:0 7px 18px rgba(0,0,0,.34)}}
+
+      /* Prese: colonna SINISTRA. Scope: colonna DESTRA. Mai sopra le carte */
+      .taken-pile{position:absolute!important;display:flex!important;flex-direction:column!important;align-items:center!important;gap:3px!important;background:rgba(4,36,28,.90)!important;border:1px solid rgba(255,210,74,.45)!important;border-radius:12px!important;padding:5px!important;box-shadow:0 6px 15px rgba(0,0,0,.30)!important;min-width:54px!important}
+      .taken-pile .label{font-size:.62rem!important;font-weight:800!important;color:#fff1a8!important;max-width:55px!important;text-align:center!important}
+      .taken-pile .count{min-width:22px!important;height:22px!important;border-radius:999px!important;background:#ffd24a!important;color:#173325!important;display:grid!important;place-items:center!important;font-weight:900!important;font-size:.74rem!important;border:2px solid #fff7cf!important;margin-top:-8px!important;align-self:flex-end!important}
       .taken-card-wrap{position:relative;line-height:0}
-      .taken-card-wrap .card.napoletana.mini{width:44px!important;height:72px!important;box-shadow:0 4px 12px rgba(0,0,0,.34)!important}
-      .taken-top{top:92px;right:16px}
-      .taken-bottom{left:16px;bottom:138px}
-      .taken-left{left:14px;bottom:168px}
-      .taken-right{right:14px;bottom:168px}
+      .taken-card-wrap .card.napoletana.mini{width:39px!important;height:65px!important;box-shadow:0 3px 9px rgba(0,0,0,.30)!important}
+      .taken-top{left:18px!important;right:auto!important;top:132px!important;bottom:auto!important}
+      .taken-bottom{left:18px!important;right:auto!important;bottom:158px!important;top:auto!important}
+      .taken-left{left:16px!important;right:auto!important;top:50%!important;bottom:auto!important;transform:translateY(-50%)!important}
+      .taken-right{left:16px!important;right:auto!important;top:62%!important;bottom:auto!important}
+
+      .scope-badge{padding:5px!important;min-width:48px!important;background:rgba(4,36,28,.90)!important}
+      .scope-owner{display:none!important}
+      .scope-mini-card .card.napoletana.mini{width:39px!important;height:65px!important}
+      .scope-top{right:18px!important;left:auto!important;top:132px!important;bottom:auto!important}
+      .scope-bottom{right:18px!important;left:auto!important;bottom:158px!important;top:auto!important}
+      .scope-left{right:16px!important;left:auto!important;top:50%!important;bottom:auto!important}
+      .scope-right{right:16px!important;left:auto!important;top:62%!important;bottom:auto!important}
+
       .motion-clone{position:absolute;will-change:transform,opacity;pointer-events:none}
-      .motion-back{width:56px;height:88px;border-radius:8px;border:3px solid #f4e1ae;background:repeating-linear-gradient(45deg,#923832 0 5px,#e3b64d 5px 10px,#244c76 10px 15px,#f0ddad 15px 20px);box-shadow:0 8px 20px rgba(0,0,0,.34)}
+      .motion-back{width:48px;height:76px;border-radius:7px;border:3px solid #f4e1ae;background:repeating-linear-gradient(45deg,#923832 0 5px,#e3b64d 5px 10px,#244c76 10px 15px,#f0ddad 15px 20px);box-shadow:0 6px 16px rgba(0,0,0,.32)}
       .motion-back:after{content:"";position:absolute;inset:6px;border:2px solid #fff8d6;border-radius:4px}
+
+      .bottom-actions{min-height:44px!important;padding:5px 10px!important}
+      .bottom-actions button{min-height:36px!important;padding:6px 12px!important;font-size:.85rem!important}
+
       @media(max-width:700px){
-        .score-card strong{font-size:1.75rem!important}
-        .score-card{min-height:54px!important}
-        .table-cards{top:47%!important;transform:translate(-50%,-30%)!important;width:86%!important}
-        .card.napoletana{width:66px!important;height:110px!important}
-        .hand .card.napoletana{width:76px!important;height:126px!important}
-        .taken-card-wrap .card.napoletana.mini{width:38px!important;height:62px!important}
-        .taken-pile{padding:5px 7px;gap:4px}
-        .taken-pile .label{display:none}
-        .taken-top{top:82px;right:12px}.taken-bottom{left:12px;bottom:130px}.taken-left{left:10px;bottom:150px}.taken-right{right:10px;bottom:150px}
-      }
-      @media(max-width:420px){
-        .table-cards{width:88%!important;gap:7px!important}
+        .game-bar{grid-template-columns:1fr auto auto!important;gap:5px!important;padding:5px 8px!important}
+        .brand strong{font-size:1rem!important;line-height:1.05!important}
+        .brand small{display:none!important}
+        .turn-badge{grid-column:auto!important;grid-row:auto!important;order:0!important;padding:5px 9px!important;font-size:.76rem!important;white-space:nowrap!important}
+        .header-actions{grid-column:auto!important;grid-row:auto!important}
+        .header-actions .share-btn,.header-actions .copy-btn{display:none!important}
+        .header-actions .leave{display:block!important}
+
+        .score-strip{padding:5px 7px!important;gap:5px!important}
+        .score-card{min-height:46px!important;padding:5px 8px!important;border-radius:13px!important}
+        .score-card strong{font-size:1.45rem!important}
+        .score-side-label{font-size:.72rem!important}
+        .score-middle span{font-size:.78rem!important}
+        .score-middle small{font-size:.64rem!important}
+
+        .table-info{top:12px!important;left:15px!important;right:15px!important;font-size:.85rem!important}
+        .opponent-top{top:45px!important}
+        .opponent-name{font-size:.78rem!important;padding:4px 8px!important}
+        .card-back{width:40px!important;height:64px!important;margin-left:-12px!important}
+
+        .table-cards{top:45%!important;width:72%!important;min-height:205px!important;gap:7px!important}
+        .table-cards .card.napoletana{width:60px!important;height:100px!important}
+
+        .self-area{bottom:5px!important;width:88%!important}
+        .self-tag{font-size:.9rem!important;padding:4px 9px!important}
+        .hand{min-height:123px!important;gap:7px!important}
         .hand .card.napoletana{width:72px!important;height:119px!important}
+
+        .taken-card-wrap .card.napoletana.mini,.scope-mini-card .card.napoletana.mini{width:34px!important;height:56px!important}
+        .taken-pile{min-width:46px!important;padding:4px!important}
+        .taken-pile .label{font-size:.56rem!important}
+        .taken-pile .count{min-width:20px!important;height:20px!important;font-size:.68rem!important}
+        .taken-top{left:12px!important;top:115px!important}.taken-bottom{left:12px!important;bottom:132px!important}
+        .scope-top{right:12px!important;top:115px!important}.scope-bottom{right:12px!important;bottom:132px!important}
       }
-    `;
+
+      @media(max-width:420px){
+        .table-cards{width:70%!important;gap:6px!important;min-height:190px!important}
+        .table-cards .card.napoletana{width:56px!important;height:93px!important}
+        .hand .card.napoletana{width:69px!important;height:114px!important}
+        .self-area{width:86%!important}
+      }
+`;
     document.head.appendChild(st);
   }
 
