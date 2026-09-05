@@ -36,11 +36,9 @@
     catch{
       try{
         const ta=document.createElement('textarea');
-        ta.value=text; ta.style.position='fixed'; ta.style.opacity='0';
-        document.body.append(ta); ta.select();
-        const ok=document.execCommand('copy');
-        ta.remove();
-        return ok;
+        ta.value=text;ta.style.position='fixed';ta.style.opacity='0';
+        document.body.append(ta);ta.select();
+        const ok=document.execCommand('copy');ta.remove();return ok;
       }catch{return false;}
     }
   }
@@ -76,7 +74,6 @@
       if(!code) return setStatus('Codice stanza non disponibile.');
       const url=inviteUrl();
       const text=`Ti invito a giocare a Scopa Online. Apri il link per entrare direttamente nella stanza ${code}.`;
-      setStatus('');
 
       if(navigator.share){
         try{
@@ -96,14 +93,12 @@
     });
 
     $('copyLinkBtn').addEventListener('click',async()=>{
-      const ok=await copy(inviteUrl());
-      setStatus(ok?'Link copiato ✓':'Copia non riuscita');
+      setStatus(await copy(inviteUrl())?'Link copiato ✓':'Copia non riuscita');
     });
 
     $('stableCopyCodeBtn').addEventListener('click',async()=>{
       const code=currentRoom();
-      const ok=await copy(code);
-      setStatus(ok?`Codice ${code} copiato ✓`:'Copia non riuscita');
+      setStatus(await copy(code)?`Codice ${code} copiato ✓`:'Copia non riuscita');
     });
 
     return panel;
@@ -117,20 +112,16 @@
     const online=state.playMode!=='cpu';
     const connected=(state.players||[]).filter(p=>p.connected).length;
     const waiting=online && !state.started && state.round===0 && connected<state.maxPlayers;
-    panel.classList.toggle('hidden',!waiting);
 
-    const code=currentRoom();
-    if($('inviteRoomCode')) $('inviteRoomCode').textContent=code||'-----';
+    panel.classList.toggle('hidden',!waiting);
+    if($('inviteRoomCode')) $('inviteRoomCode').textContent=currentRoom()||'-----';
     if($('shareBtn')) $('shareBtn').classList.toggle('hidden',!online);
     if($('copyCodeBtn')) $('copyCodeBtn').classList.toggle('hidden',!online);
   }
 
   $('shareBtn')?.addEventListener('click',()=>{
     const p=ensurePanel();
-    if(p){
-      p.classList.remove('hidden');
-      p.scrollIntoView({block:'center',behavior:'smooth'});
-    }
+    if(p) p.classList.remove('hidden');
   });
 
   $('copyCodeBtn')?.addEventListener('click',async()=>{
@@ -138,14 +129,13 @@
     if(code) await copy(code);
   });
 
-  // Se si esce da un invito, elimina ?room= prima del reload.
   $('leaveBtn')?.addEventListener('click',()=>{
     const u=new URL(location.href);
     if(u.searchParams.has('room')){
       u.searchParams.delete('room');
-      history.replaceState({},'',u.pathname + (u.search||'') + (u.hash||''));
+      history.replaceState({},'',u.pathname+(u.search||'')+(u.hash||''));
     }
-  }, true);
+  },true);
 
   const previousRender=render;
   render=function(){
@@ -153,14 +143,11 @@
     updatePanel();
   };
 
-  // INGRESSO DIRETTO DAL LINK CONDIVISO
+  // Direct entry from a shared link.
   if(invitedRoom){
     if($('room')) $('room').value=invitedRoom;
-
     const savedName=(localStorage.getItem('scopa-name')||'').trim();
-    if($('name') && !$('name').value.trim()){
-      $('name').value=savedName || 'Ospite';
-    }
+    if($('name') && !$('name').value.trim()) $('name').value=savedName || 'Ospite';
 
     const note=document.createElement('div');
     note.className='direct-join-note';
@@ -180,83 +167,96 @@
 })();
 
 
-/* V1.6.4 — Distribuzione carte più lenta e naturale */
+/* V1.7 - cinematic timing.
+   The old motion engine remains, but its clones are slowed down here. */
 (()=>{
-  const DEAL_DURATION = 600;   // durata movimento singola carta
-  const DEAL_GAP = 180;        // distanza tra una carta e la successiva
-  const HOLD_AFTER = 140;      // piccolo margine prima di rimuovere il clone
-  let dealIndex = 0;
-  let lastDealCloneAt = 0;
+  const DEAL_DURATION=1150;
+  const DEAL_GAP=390;
+  const ACTION_DURATION=820;
+  const HOLD_AFTER=180;
 
-  const style = document.createElement('style');
-  style.id = 'slow-deal-animation-styles';
-  style.textContent = `
-    .motion-clone.slow-deal-clone{
-      transition-duration:${DEAL_DURATION}ms !important;
-      transition-delay:var(--deal-delay,0ms) !important;
-      transition-timing-function:cubic-bezier(.18,.78,.25,1) !important;
+  let dealIndex=0;
+  let lastDealAt=0;
+
+  const style=document.createElement('style');
+  style.id='cinematic-motion-timing';
+  style.textContent=`
+    .motion-clone.cinematic-deal{
+      transition-duration:${DEAL_DURATION}ms!important;
+      transition-delay:var(--cinematic-delay,0ms)!important;
+      transition-timing-function:cubic-bezier(.18,.75,.20,1)!important
     }
+    .motion-clone.cinematic-action{
+      transition-duration:${ACTION_DURATION}ms!important;
+      transition-timing-function:cubic-bezier(.18,.75,.20,1)!important
+    }
+    body.dealing-cards #hand{pointer-events:none!important}
   `;
   document.head.append(style);
 
-  const nativeRemove = Element.prototype.remove;
+  const nativeRemove=Element.prototype.remove;
 
-  Element.prototype.remove = function(){
-    if(this?.classList?.contains('slow-deal-clone') && this.dataset.slowRemoveScheduled !== '1'){
-      this.dataset.slowRemoveScheduled = '1';
+  Element.prototype.remove=function(){
+    if(
+      this?.classList?.contains('cinematic-deal') ||
+      this?.classList?.contains('cinematic-action')
+    ){
+      if(this.dataset.cinematicRemoveScheduled==='1') return;
 
-      const delay = Number(this.dataset.dealDelay || 0);
-      const created = Number(this.dataset.dealCreated || performance.now());
-      const elapsed = performance.now() - created;
-      const targetLife = DEAL_DURATION + delay + HOLD_AFTER;
-      const remaining = Math.max(0, targetLife - elapsed);
+      this.dataset.cinematicRemoveScheduled='1';
+      const created=Number(this.dataset.cinematicCreated||performance.now());
+      const delay=Number(this.dataset.cinematicDelay||0);
+      const duration=this.classList.contains('cinematic-deal')?DEAL_DURATION:ACTION_DURATION;
+      const life=duration+delay+HOLD_AFTER;
+      const remaining=Math.max(0,life-(performance.now()-created));
 
-      setTimeout(()=>nativeRemove.call(this), remaining);
+      setTimeout(()=>nativeRemove.call(this),remaining);
       return;
     }
 
     return nativeRemove.call(this);
   };
 
-  function markDealClone(node){
+  function mark(node){
     if(!(node instanceof Element)) return;
 
-    const clones = [];
-    if(node.matches?.('.motion-clone')) clones.push(node);
-    clones.push(...node.querySelectorAll?.('.motion-clone') || []);
+    const candidates=[];
+    if(node.matches?.('.motion-clone')) candidates.push(node);
+    candidates.push(...(node.querySelectorAll?.('.motion-clone')||[]));
 
-    clones.forEach(clone=>{
-      if(!clone.querySelector('.motion-back')) return;
-      if(clone.classList.contains('slow-deal-clone')) return;
+    for(const clone of candidates){
+      if(clone.dataset.cinematicMarked==='1') continue;
+      clone.dataset.cinematicMarked='1';
 
-      const now = performance.now();
+      const now=performance.now();
+      clone.dataset.cinematicCreated=String(now);
 
-      // Nuova distribuzione: azzera la sequenza dopo una pausa.
-      if(now - lastDealCloneAt > 500){
-        dealIndex = 0;
+      if(clone.querySelector('.motion-back')){
+        if(now-lastDealAt>700) dealIndex=0;
+        lastDealAt=now;
+
+        const delay=dealIndex*DEAL_GAP;
+        dealIndex++;
+
+        clone.classList.add('cinematic-deal');
+        clone.style.setProperty('--cinematic-delay',`${delay}ms`);
+        clone.dataset.cinematicDelay=String(delay);
+
+        document.body.classList.add('dealing-cards');
+        const clearAfter=DEAL_DURATION+delay+HOLD_AFTER+80;
+        setTimeout(()=>document.body.classList.remove('dealing-cards'),clearAfter);
+      }else{
+        clone.classList.add('cinematic-action');
+        clone.dataset.cinematicDelay='0';
       }
-      lastDealCloneAt = now;
-
-      const delay = dealIndex * DEAL_GAP;
-      dealIndex++;
-
-      clone.classList.add('slow-deal-clone');
-      clone.style.setProperty('--deal-delay', `${delay}ms`);
-      clone.dataset.dealDelay = String(delay);
-      clone.dataset.dealCreated = String(now);
-    });
+    }
   }
 
-  const observer = new MutationObserver(mutations=>{
-    for(const mutation of mutations){
-      for(const node of mutation.addedNodes){
-        markDealClone(node);
-      }
+  const observer=new MutationObserver(list=>{
+    for(const mutation of list){
+      for(const node of mutation.addedNodes) mark(node);
     }
   });
 
-  observer.observe(document.documentElement, {
-    childList:true,
-    subtree:true
-  });
+  observer.observe(document.documentElement,{childList:true,subtree:true});
 })();

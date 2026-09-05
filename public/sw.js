@@ -1,4 +1,4 @@
-const CACHE='scopa-v6.1.4-slower-deal';
+const CACHE='scopa-v7-cpu-emotes-slow';
 const CORE=['/','/index.html','/styles.css','/app.js','/cpu-patch.js','/share-patch.js','/motion-patch.js','/manifest.webmanifest','/icon.svg'];
 self.addEventListener('install',e=>e.waitUntil(caches.open(CACHE).then(c=>c.addAll(CORE))).then(()=>self.skipWaiting()));
 self.addEventListener('activate',e=>e.waitUntil(Promise.all([
