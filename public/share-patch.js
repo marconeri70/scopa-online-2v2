@@ -178,3 +178,85 @@
     },60);
   }
 })();
+
+
+/* V1.6.4 — Distribuzione carte più lenta e naturale */
+(()=>{
+  const DEAL_DURATION = 600;   // durata movimento singola carta
+  const DEAL_GAP = 180;        // distanza tra una carta e la successiva
+  const HOLD_AFTER = 140;      // piccolo margine prima di rimuovere il clone
+  let dealIndex = 0;
+  let lastDealCloneAt = 0;
+
+  const style = document.createElement('style');
+  style.id = 'slow-deal-animation-styles';
+  style.textContent = `
+    .motion-clone.slow-deal-clone{
+      transition-duration:${DEAL_DURATION}ms !important;
+      transition-delay:var(--deal-delay,0ms) !important;
+      transition-timing-function:cubic-bezier(.18,.78,.25,1) !important;
+    }
+  `;
+  document.head.append(style);
+
+  const nativeRemove = Element.prototype.remove;
+
+  Element.prototype.remove = function(){
+    if(this?.classList?.contains('slow-deal-clone') && this.dataset.slowRemoveScheduled !== '1'){
+      this.dataset.slowRemoveScheduled = '1';
+
+      const delay = Number(this.dataset.dealDelay || 0);
+      const created = Number(this.dataset.dealCreated || performance.now());
+      const elapsed = performance.now() - created;
+      const targetLife = DEAL_DURATION + delay + HOLD_AFTER;
+      const remaining = Math.max(0, targetLife - elapsed);
+
+      setTimeout(()=>nativeRemove.call(this), remaining);
+      return;
+    }
+
+    return nativeRemove.call(this);
+  };
+
+  function markDealClone(node){
+    if(!(node instanceof Element)) return;
+
+    const clones = [];
+    if(node.matches?.('.motion-clone')) clones.push(node);
+    clones.push(...node.querySelectorAll?.('.motion-clone') || []);
+
+    clones.forEach(clone=>{
+      if(!clone.querySelector('.motion-back')) return;
+      if(clone.classList.contains('slow-deal-clone')) return;
+
+      const now = performance.now();
+
+      // Nuova distribuzione: azzera la sequenza dopo una pausa.
+      if(now - lastDealCloneAt > 500){
+        dealIndex = 0;
+      }
+      lastDealCloneAt = now;
+
+      const delay = dealIndex * DEAL_GAP;
+      dealIndex++;
+
+      clone.classList.add('slow-deal-clone');
+      clone.style.setProperty('--deal-delay', `${delay}ms`);
+      clone.dataset.dealDelay = String(delay);
+      clone.dataset.dealCreated = String(now);
+    });
+  }
+
+  const observer = new MutationObserver(mutations=>{
+    for(const mutation of mutations){
+      for(const node of mutation.addedNodes){
+        markDealClone(node);
+      }
+    }
+  });
+
+  observer.observe(document.documentElement, {
+    childList:true,
+    subtree:true
+  });
+})();
