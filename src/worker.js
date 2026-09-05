@@ -1,4 +1,4 @@
-import { ScopaRoom } from './ScopaRoom.js';
+import { ScopaRoom } from './ScopaRoomV2.js';
 export { ScopaRoom };
 
 export default {
