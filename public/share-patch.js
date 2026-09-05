@@ -1,6 +1,19 @@
 (()=>{
-  const s=document.createElement('style');s.textContent='\n.header-actions{display:flex;gap:6px;justify-self:end;align-items:center}.share-btn{background:#ffd24a;color:#173325}.copy-btn{background:#fff;color:#173325}@media(max-width:700px){.header-actions{grid-column:2;grid-row:1;flex-wrap:wrap;justify-content:flex-end}.header-actions .small{min-height:34px;padding:5px 8px;font-size:.72rem}.brand{max-width:120px}}\n';document.head.append(s);
   const $=id=>document.getElementById(id);
+
+  const style=document.createElement('style');
+  style.id='stable-share-styles';
+  style.textContent=`
+    .header-actions{display:flex;gap:6px;justify-self:end;align-items:center}
+    .share-btn{background:#ffd24a;color:#173325}.copy-btn{background:#fff;color:#173325}
+    .online-invite-panel{position:absolute;left:50%;top:23%;transform:translateX(-50%);z-index:24;width:min(88%,430px);background:rgba(4,34,26,.97);border:2px solid rgba(255,210,74,.72);border-radius:18px;padding:14px;box-shadow:0 12px 34px rgba(0,0,0,.38);text-align:center;color:#fff}
+    .online-invite-panel h3{margin:0 0 6px;font-size:1.1rem}.online-invite-panel p{margin:4px 0 10px;opacity:.82;font-size:.85rem}
+    .invite-code{display:inline-block;letter-spacing:.16em;font-size:1.8rem;line-height:1;font-weight:900;background:#fff;color:#153126;border-radius:12px;padding:10px 14px;margin:4px 0 12px}
+    .invite-actions{display:grid;grid-template-columns:1fr 1fr;gap:8px}.invite-actions button{min-height:42px;padding:8px 10px;border-radius:11px;font-size:.85rem}.invite-actions .share-main{grid-column:1/-1;background:#ffd24a;color:#153126}.invite-status{min-height:1.2em;margin-top:8px;font-size:.78rem;color:#ffe9a4}
+    @media(max-width:700px){.header-actions .share-btn,.header-actions .copy-btn{display:none!important}.online-invite-panel{top:18%;width:min(90%,390px);padding:12px}.invite-code{font-size:1.55rem}}
+  `;
+  document.head.append(style);
+
   const params=new URLSearchParams(location.search);
   const invitedRoom=(params.get('room')||'').trim().toUpperCase().slice(0,8);
   if(invitedRoom && $('room')){
@@ -22,26 +35,65 @@
   async function copy(text){
     try{ await navigator.clipboard.writeText(text); return true; }
     catch{
-      const ta=document.createElement('textarea'); ta.value=text; document.body.append(ta); ta.select();
-      const ok=document.execCommand('copy'); ta.remove(); return ok;
+      try{
+        const ta=document.createElement('textarea');ta.value=text;ta.style.position='fixed';ta.style.opacity='0';document.body.append(ta);ta.select();
+        const ok=document.execCommand('copy');ta.remove();return ok;
+      }catch{return false;}
     }
   }
+  function setStatus(text){ const el=$('inviteStatus'); if(el) el.textContent=text; }
 
-  $('shareBtn')?.addEventListener('click',async()=>{
-    const code=currentRoom();
-    if(!code) return;
-    const url=inviteUrl();
-    const text=`Ti invito a giocare a Scopa Online. Stanza ${code}`;
-    if(navigator.share){
-      try{ await navigator.share({title:'Scopa Online',text,url}); return; }catch(e){ if(e?.name==='AbortError') return; }
-    }
-    await copy(`${text}\n${url}`);
-    const b=$('shareBtn'); if(b){const old=b.textContent;b.textContent='Link copiato ✓';setTimeout(()=>b.textContent=old,1800);}
-  });
+  function ensurePanel(){
+    const table=document.querySelector('.game-table');
+    if(!table) return null;
+    let panel=$('onlineInvitePanel');
+    if(panel) return panel;
+    panel=document.createElement('section');
+    panel.id='onlineInvitePanel';
+    panel.className='online-invite-panel hidden';
+    panel.innerHTML=`
+      <h3>Invita il secondo giocatore</h3>
+      <p>Può trovarsi ovunque: deve solo aprire il link sul suo telefono.</p>
+      <div id="inviteRoomCode" class="invite-code">-----</div>
+      <div class="invite-actions">
+        <button id="stableShareBtn" class="share-main" type="button">Condividi invito</button>
+        <button id="copyLinkBtn" type="button">Copia link</button>
+        <button id="stableCopyCodeBtn" type="button">Copia codice</button>
+      </div>
+      <div id="inviteStatus" class="invite-status"></div>`;
+    table.append(panel);
 
-  $('copyCodeBtn')?.addEventListener('click',async()=>{
-    const code=currentRoom(); if(!code) return;
-    await copy(code);
-    const b=$('copyCodeBtn'); if(b){const old=b.textContent;b.textContent='Copiato ✓';setTimeout(()=>b.textContent=old,1500);}
-  });
+    $('stableShareBtn').addEventListener('click',async()=>{
+      const code=currentRoom(); if(!code) return setStatus('Codice stanza non disponibile.');
+      const url=inviteUrl(); const text=`Ti invito a giocare a Scopa Online. Stanza ${code}`;
+      setStatus('');
+      if(navigator.share){
+        try{ await navigator.share({title:'Scopa Online',text,url}); setStatus('Invito condiviso. In attesa del giocatore…'); return; }
+        catch(e){ if(e?.name==='AbortError'){ setStatus('Condivisione annullata. Il pannello resta aperto.'); return; } }
+      }
+      const ok=await copy(`${text}\n${url}`);
+      setStatus(ok?'Link copiato. Incollalo su WhatsApp o Telegram.':'Non riesco a copiare il link.');
+    });
+    $('copyLinkBtn').addEventListener('click',async()=>{ const ok=await copy(inviteUrl()); setStatus(ok?'Link copiato ✓':'Copia non riuscita'); });
+    $('stableCopyCodeBtn').addEventListener('click',async()=>{ const code=currentRoom(); const ok=await copy(code); setStatus(ok?`Codice ${code} copiato ✓`:'Copia non riuscita'); });
+    return panel;
+  }
+
+  function updatePanel(){
+    if(typeof state==='undefined' || !state) return;
+    const panel=ensurePanel(); if(!panel) return;
+    const online=state.playMode!=='cpu';
+    const connected=(state.players||[]).filter(p=>p.connected).length;
+    const waiting=online && !state.started && state.round===0 && connected<state.maxPlayers;
+    panel.classList.toggle('hidden',!waiting);
+    const code=currentRoom(); if($('inviteRoomCode')) $('inviteRoomCode').textContent=code||'-----';
+    if($('shareBtn')) $('shareBtn').classList.toggle('hidden',!online);
+    if($('copyCodeBtn')) $('copyCodeBtn').classList.toggle('hidden',!online);
+  }
+
+  $('shareBtn')?.addEventListener('click',()=>{ const p=ensurePanel(); if(p){ p.classList.remove('hidden'); p.scrollIntoView({block:'center',behavior:'smooth'}); } });
+  $('copyCodeBtn')?.addEventListener('click',async()=>{ const code=currentRoom(); if(code) await copy(code); });
+
+  const previousRender=render;
+  render=function(){ previousRender(); updatePanel(); };
 })();
